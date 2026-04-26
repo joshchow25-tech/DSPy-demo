@@ -29,7 +29,8 @@ app.add_middleware(
 
 # 初始化 Agent
 LM_MODEL = os.getenv("DSPY_LM", "deepseek/deepseek-chat")
-agent = CustomerServiceAgent(lm_model=LM_MODEL)
+DEBUG_MODE = os.getenv("DSPY_DEBUG", "false").lower() in ("true", "1", "yes")
+agent = CustomerServiceAgent(lm_model=LM_MODEL, debug=DEBUG_MODE)
 
 
 # ============================================================
@@ -54,7 +55,7 @@ class ChatResponse(BaseModel):
 @app.get("/api/health")
 async def health_check():
     """健康检查"""
-    return {"status": "ok", "service": "DSPy 智能客服", "llm": LM_MODEL}
+    return {"status": "ok", "service": "DSPy 智能客服", "llm": LM_MODEL, "debug": DEBUG_MODE}
 
 
 @app.post("/api/chat", response_model=ChatResponse)

@@ -260,8 +260,9 @@ class CustomerServiceAgent:
     - 支持多工具调用和上下文累积
     """
 
-    def __init__(self, lm_model: str = "openai/gpt-4o-mini"):
+    def __init__(self, lm_model: str = "openai/gpt-4o-mini", debug: bool = False):
         # 配置语言模型
+        self.debug = debug
         try:
             dspy.configure(lm=dspy.LM(lm_model))
         except Exception as e:
@@ -307,13 +308,81 @@ class CustomerServiceAgent:
         if self._fallback_mode:
             return self._fallback_chat(user_message)
 
-        try:
+        # ========== 调试模式：记录 ReAct 推理轨迹 ==========
+        trace = []
+        if self.debug:
+            with dspy.settings.context(trace=trace):
+                result = self._agent(user_request=user_message)
+                self._print_trace(trace)
+        else:
             result = self._agent(user_request=user_message)
+
+        # 从 result 中提取轨迹信息（兼容非 trace 模式）
+        trajectory = getattr(result, 'trajectory', None)
+        if self.debug and trajectory:
+            self._print_trajectory(trajectory)
+
+        try:
             return result.process_result
         except Exception as e:
-            # 如果 Agent 出错，尝试降级模式
             print(f"⚠️  Agent 执行出错: {e}")
             return self._fallback_chat(user_message)
+
+    def _print_trace(self, trace):
+        """打印 DSPy trace 信息（每次 LLM 调用的详细记录）"""
+        print("\n" + "=" * 60)
+        print("🔍 [DEBUG] DSPy Trace — ReAct 推理轨迹")
+        print("=" * 60)
+        for i, step in enumerate(trace):
+            step_cls = step.__class__.__name__
+            print(f"\n--- Step {i + 1}: {step_cls} ---")
+            if hasattr(step, 'input'):
+                inp = step.input
+                if isinstance(inp, dict):
+                    for k, v in inp.items():
+                        val_preview = str(v)[:200] if v else "(empty)"
+                        print(f"  📥 {k}: {val_preview}")
+                else:
+                    print(f"  📥 Input: {str(inp)[:200]}")
+            if hasattr(step, 'output'):
+                out = step.output
+                if isinstance(out, dict):
+                    for k, v in out.items():
+                        val_preview = str(v)[:200] if v else "(empty)"
+                        print(f"  📤 {k}: {val_preview}")
+                else:
+                    print(f"  📤 Output: {str(out)[:200]}")
+        print("\n" + "=" * 60)
+
+    def _print_trajectory(self, trajectory):
+        """打印 ReAct trajectory（Thought/Action/Observation 序列）"""
+        print("\n" + "=" * 60)
+        print("🧠 [DEBUG] ReAct Trajectory — 思考/行动/观察序列")
+        print("=" * 60)
+        for i, step in enumerate(trajectory):
+            if isinstance(step, dict):
+                for key, value in step.items():
+                    label = {
+                        "thought": "💭 Thought",
+                        "action": "⚡ Action",
+                        "observation": "👁 Observation",
+                        "tool": "🔧 Tool",
+                        "tool_input": "📥 Tool Input",
+                        "tool_output": "📤 Tool Output",
+                    }.get(key.lower(), f"📌 {key}")
+                    val = str(value) if value else "(empty)"
+                    # 长内容截断
+                    if len(val) > 300:
+                        val = val[:300] + "..."
+                    print(f"  {label}: {val}")
+            else:
+                print(f"  Step {i + 1}: {step}")
+        print("\n" + "=" * 60)
+
+    @staticmethod
+    def inspect_history(n: int = 3):
+        """查看最近 n 次 LLM 调用的完整 prompt 和响应"""
+        dspy.inspect_history(n=n)
 
     def _fallback_chat(self, user_message: str) -> str:
         """降级模式：基于关键词的简单匹配（不需要 LLM）"""
