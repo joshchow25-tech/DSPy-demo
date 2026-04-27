@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill 管理 — DSPy 智能客服</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #4F46E5;
+            --bg: #F8FAFC;
+            --card: #FFFFFF;
+            --text: #1E293B;
+            --text-s: #64748B;
+            --border: #E2E8F0;
+            --green: #10B981;
+            --red: #EF4444;
+            --yellow: #F59E0B;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4F46E5, #7C3AED);
+            color: white;
+            padding: 18px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .sub { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+        .header a { margin-left: auto; color: rgba(255,255,255,0.85); text-decoration: none; font-size: 13px; }
+        .header a:hover { color: white; }
+
+        .main { max-width: 900px; margin: 0 auto; padding: 28px 20px; display: grid; gap: 20px; }
+
+        /* ===== Card ===== */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ===== Skill Status ===== */
+        .skill-version {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #EEF2FF;
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .skill-meta { color: var(--text-s); font-size: 13px; margin-top: 8px; }
+
+        /* ===== Stats ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-box .val { font-size: 28px; font-weight: 700; }
+        .stat-box .label { font-size: 12px; color: var(--text-s); margin-top: 4px; }
+        .stat-box.good .val { color: var(--green); }
+        .stat-box.bad .val { color: var(--red); }
+        .stat-box.rate .val { color: var(--primary); }
+
+        /* ===== Buttons ===== */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #4338CA; transform: translateY(-1px); }
+        .btn-primary:disabled { background: #A5B4FC; cursor: not-allowed; transform: none; }
+
+        .btn-outline { background: white; color: var(--text); border: 1px solid var(--border); }
+        .btn-outline:hover { background: var(--bg); }
+
+        .btn-demo { background: linear-gradient(135deg, #059669, #10B981); color: white; }
+        .btn-demo:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+
+        .btn-danger { background: white; color: var(--red); border: 1px solid #FECACA; }
+        .btn-danger:hover { background: #FEF2F2; }
+
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+        /* ===== Few-shot examples ===== */
+        .example-list { display: grid; gap: 12px; margin-top: 12px; }
+
+        .example-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--primary);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .example-item .q { font-size: 13px; color: var(--text-s); margin-bottom: 6px; }
+        .example-item .q span { font-weight: 600; color: var(--primary); }
+        .example-item .a { font-size: 13px; white-space: pre-wrap; line-height: 1.6; }
+
+        /* ===== Log ===== */
+        .log-box {
+            background: #0F172A;
+            color: #94A3B8;
+            border-radius: 10px;
+            padding: 16px;
+            font-size: 12px;
+            font-family: 'Menlo', 'Monaco', monospace;
+            min-height: 80px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log-box .ok { color: #34D399; }
+        .log-box .err { color: #F87171; }
+        .log-box .info { color: #60A5FA; }
+
+        /* ===== Progress bar ===== */
+        .progress-wrap { background: var(--border); border-radius: 8px; height: 8px; overflow: hidden; margin-top: 8px; }
+        .progress-bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--green), var(--primary)); transition: width 0.5s; }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1E293B;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 9999;
+            max-width: 320px;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* pulse animation for optimizing */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .optimizing { animation: pulse 1.2s infinite; }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div>
+        <h1>🧠 Skill 管理</h1>
+        <div class="sub">DSPy BootstrapFewShot — 自动优化 Agent 回复质量</div>
+    </div>
+    <a href="/" >← 返回聊天</a>
+</header>
+
+<div class="main">
+
+    <!-- Skill 当前状态 -->
+    <div class="card">
+        <div class="card-title">⚡ 当前 Skill 状态</div>
+        <div id="skillStatus">加载中...</div>
+    </div>
+
+    <!-- 反馈统计 -->
+    <div class="card">
+        <div class="card-title">📊 用户反馈统计</div>
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="val" id="totalCount">-</div>
+                <div class="label">总反馈数</div>
+            </div>
+            <div class="stat-box good">
+                <div class="val" id="goodCount">-</div>
+                <div class="label">👍 好评</div>
+            </div>
+            <div class="stat-box bad">
+                <div class="val" id="badCount">-</div>
+                <div class="label">👎 差评</div>
+            </div>
+            <div class="stat-box rate">
+                <div class="val" id="goodRate">-%</div>
+                <div class="label">好评率</div>
+            </div>
+        </div>
+        <!-- 好评进度（距离可优化还差多少） -->
+        <div style="margin-top:14px">
+            <div style="font-size:13px;color:var(--text-s)" id="progressLabel">好评样本进度（至少 3 条才能优化）</div>
+            <div class="progress-wrap">
+                <div class="progress-bar" id="progressBar" style="width:0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 优化操作 -->
+    <div class="card">
+        <div class="card-title">🚀 Skill 优化操作</div>
+
+        <p style="font-size:13px;color:var(--text-s);line-height:1.7">
+            <strong>自动优化</strong>：使用好评对话作为训练集，通过 <code>dspy.BootstrapFewShot</code> 自动提炼
+            few-shot 示例并注入 Agent 的 Signature，提升回复质量。<br>
+            <strong>演示注入</strong>：跳过反馈积累，直接注入 3 条精选示例，即时体验 Skill 更新效果。
+        </p>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" id="optimizeBtn" onclick="triggerOptimize()">
+                ⚙️ 触发自动优化
+            </button>
+            <button class="btn btn-demo" onclick="injectDemo()">
+                🎯 演示：快速注入示例
+            </button>
+            <button class="btn btn-danger" onclick="resetSkill()">
+                🗑️ 重置 Skill
+            </button>
+        </div>
+
+        <div style="margin-top:16px">
+            <div style="font-size:13px;color:var(--text-s);margin-bottom:8px">操作日志</div>
+            <div class="log-box" id="logBox"><span class="info">等待操作...</span></div>
+        </div>
+    </div>
+
+    <!-- Few-shot 示例展示 -->
+    <div class="card" id="examplesCard" style="display:none">
+        <div class="card-title">📚 当前 Few-shot 示例 <span id="examplesCount" style="font-size:12px;color:var(--text-s);font-weight:normal"></span></div>
+        <p style="font-size:13px;color:var(--text-s);margin-bottom:12px">这些示例已注入 Agent 的 Signature，作为生成回复的参考范本。</p>
+        <div class="example-list" id="examplesList"></div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    async function loadAll() {
+        await Promise.all([loadSkill(), loadStats()]);
+    }
+
+    async function loadSkill() {
+        const res = await fetch('/api/skill');
+        const skill = await res.json();
+
+        const version = skill.version || 0;
+        const desc = skill.description || '默认 Skill（未经优化）';
+        const optimizedAt = skill.optimized_at || '从未优化';
+        const examples = skill.few_shot_examples || [];
+
+        document.getElementById('skillStatus').innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <span class="skill-version">v${version}</span>
+                <span style="font-size:14px;font-weight:500">${desc}</span>
+            </div>
+            <div class="skill-meta">最后优化时间：${optimizedAt} &nbsp;|&nbsp; Few-shot 示例数：${examples.length}</div>
+        `;
+
+        // 展示 few-shot 示例
+        const card = document.getElementById('examplesCard');
+        const list = document.getElementById('examplesList');
+        const count = document.getElementById('examplesCount');
+
+        if (examples.length > 0) {
+            card.style.display = '';
+            count.textContent = `（${examples.length} 条）`;
+            list.innerHTML = '';
+            examples.forEach((ex, i) => {
+                const item = document.createElement('div');
+                item.className = 'example-item';
+                item.innerHTML = `
+                    <div class="q"><span>Q${i+1}</span>：${escHtml(ex.user_request)}</div>
+                    <div class="a">${escHtml(ex.process_result)}</div>
+                `;
+                list.appendChild(item);
+            });
+        } else {
+            card.style.display = 'none';
+        }
+    }
+
+    async function loadStats() {
+        const res = await fetch('/api/feedback/stats');
+        const data = await res.json();
+        const stats = data.stats;
+
+        document.getElementById('totalCount').textContent = stats.total;
+        document.getElementById('goodCount').textContent = stats.good;
+        document.getElementById('badCount').textContent = stats.bad;
+        document.getElementById('goodRate').textContent = stats.total > 0 ? stats.good_rate + '%' : '-%';
+
+        const pct = Math.min((stats.good / 3) * 100, 100);
+        document.getElementById('progressBar').style.width = pct + '%';
+
+        const label = document.getElementById('progressLabel');
+        if (stats.enough_to_optimize) {
+            label.textContent = `✅ 已有 ${stats.good} 条好评，可以触发优化！`;
+            label.style.color = '#16a34a';
+            document.getElementById('optimizeBtn').disabled = false;
+        } else {
+            label.textContent = `好评进度：${stats.good} / 3（还差 ${3 - stats.good} 条）`;
+            label.style.color = 'var(--text-s)';
+            document.getElementById('optimizeBtn').disabled = true;
+        }
+    }
+
+    async function triggerOptimize() {
+        const btn = document.getElementById('optimizeBtn');
+        btn.disabled = true;
+        btn.classList.add('optimizing');
+        btn.textContent = '⚙️ 优化进行中...';
+        log('info', '⚙️ 触发 DSPy BootstrapFewShot 优化...');
+
+        try {
+            const res = await fetch('/api/skill/optimize', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                log('ok', '✅ ' + data.message);
+                showToast('优化已在后台运行，约 1-2 分钟后完成');
+                setTimeout(loadAll, 3000);
+            } else {
+                log('err', '❌ ' + data.message);
+            }
+        } catch (e) {
+            log('err', '❌ 请求失败: ' + e.message);
+        }
+
+        btn.classList.remove('optimizing');
+        btn.textContent = '⚙️ 触发自动优化';
+        setTimeout(loadStats, 500);
+    }
+
+    async function injectDemo() {
+        log('info', '🎯 注入演示 few-shot 示例...');
+        try {
+            const res = await fetch('/api/skill/demo', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                log('ok', `✅ ${data.message}`);
+                log('ok', `   注入示例: ${data.examples.join(' | ')}`);
+                showToast('演示 Skill 已注入！去聊天页面试试效果 🎉');
+                await loadAll();
+            } else {
+                log('err', '❌ ' + data.message);
+            }
+        } catch (e) {
+            log('err', '❌ 请求失败: ' + e.message);
+        }
+    }
+
+    async function resetSkill() {
+        if (!confirm('确定要重置 Skill 到默认状态吗？这将清除所有 few-shot 示例。')) return;
+        log('info', '🗑️ 重置 Skill...');
+        try {
+            const res = await fetch('/api/skill/reset', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                log('ok', '✅ ' + data.message);
+                showToast('Skill 已重置');
+                await loadAll();
+            }
+        } catch (e) {
+            log('err', '❌ 请求失败: ' + e.message);
+        }
+    }
+
+    function log(type, msg) {
+        const box = document.getElementById('logBox');
+        const line = document.createElement('div');
+        line.className = type;
+        line.textContent = `[${new Date().toLocaleTimeString('zh-CN')}] ${msg}`;
+        // 清除初始提示
+        if (box.querySelector('.info') && box.children.length === 1) {
+            box.innerHTML = '';
+        }
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    function escHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // 初始化
+    loadAll();
+    // 每 10 秒刷新一次统计
+    setInterval(loadStats, 10000);
+</script>
+</body>
+</html>

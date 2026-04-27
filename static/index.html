@@ -85,7 +85,12 @@
             border-radius: 20px;
             font-size: 12px;
             font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
         }
+
+        .header .badge:hover { background: rgba(255,255,255,0.35); }
 
         /* ===== Chat Container ===== */
         .chat-container {
@@ -163,6 +168,28 @@
         }
 
         .message.user .time { text-align: right; }
+
+        /* Feedback buttons */
+        .feedback-bar {
+            display: flex;
+            gap: 6px;
+            padding: 4px 4px 0;
+        }
+
+        .fb-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 3px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.18s;
+        }
+
+        .fb-btn:hover { background: #f0fdf4; border-color: #86efac; color: #16a34a; }
+        .fb-btn.bad:hover { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+        .fb-btn.voted { opacity: 0.5; cursor: default; pointer-events: none; }
 
         /* Typing indicator */
         .typing-indicator {
@@ -297,7 +324,7 @@
             <span id="statusText">在线服务中</span>
         </div>
     </div>
-    <span class="badge">Powered by DSPy + ReAct</span>
+    <span class="badge" onclick="window.open('/skill','_blank')">🧠 Skill 管理</span>
 </header>
 
 <!-- Quick Actions -->
@@ -352,6 +379,10 @@
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
 
+    // 当前对话上下文（用于反馈）
+    let lastUserMsg = '';
+    let lastBotReply = '';
+
     // Set welcome time
     document.getElementById('welcomeTime').textContent = getCurrentTime();
 
@@ -385,13 +416,12 @@
         const message = userInput.value.trim();
         if (!message) return;
 
-        // Add user message
+        lastUserMsg = message;
         addMessage('user', message);
         userInput.value = '';
         userInput.style.height = 'auto';
         sendBtn.disabled = true;
 
-        // Show typing indicator
         const typingEl = showTyping();
         scrollToBottom();
 
@@ -403,20 +433,20 @@
             });
 
             const data = await response.json();
-
-            // Remove typing indicator
             typingEl.remove();
 
             if (data.success) {
-                addMessage('bot', data.reply);
+                lastBotReply = data.reply;
+                addBotMessage(data.reply);
             } else {
-                addMessage('bot', data.reply);
+                lastBotReply = data.reply;
+                addBotMessage(data.reply);
                 statusDot.classList.add('offline');
                 statusText.textContent = '服务异常';
             }
         } catch (err) {
             typingEl.remove();
-            addMessage('bot', '抱歉，网络连接出现问题，请稍后重试 😥');
+            addBotMessage('抱歉，网络连接出现问题，请稍后重试 😥');
             statusDot.classList.add('offline');
             statusText.textContent = '连接断开';
         }
@@ -425,13 +455,38 @@
         scrollToBottom();
     }
 
+    // ===== 添加用户消息 =====
     function addMessage(role, text) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
+        const avatar = document.createElement('div');
+        avatar.className = 'msg-avatar';
+        avatar.textContent = '👤';
+        const wrapper = document.createElement('div');
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+        const time = document.createElement('div');
+        time.className = 'time';
+        time.textContent = getCurrentTime();
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(time);
+        div.appendChild(avatar);
+        div.appendChild(wrapper);
+        chatContainer.appendChild(div);
+    }
+
+    // ===== 添加 Bot 消息（含反馈按钮）=====
+    function addBotMessage(text) {
+        const userQ = lastUserMsg;   // 闭包捕获当前问题
+        const botA = text;
+
+        const div = document.createElement('div');
+        div.className = 'message bot';
 
         const avatar = document.createElement('div');
         avatar.className = 'msg-avatar';
-        avatar.textContent = role === 'user' ? '👤' : '🤖';
+        avatar.textContent = '🤖';
 
         const wrapper = document.createElement('div');
 
@@ -443,39 +498,98 @@
         time.className = 'time';
         time.textContent = getCurrentTime();
 
+        // 反馈栏
+        const fbBar = document.createElement('div');
+        fbBar.className = 'feedback-bar';
+
+        const goodBtn = document.createElement('button');
+        goodBtn.className = 'fb-btn';
+        goodBtn.textContent = '👍 有帮助';
+        goodBtn.onclick = () => submitFeedback(userQ, botA, 1, goodBtn, badBtn);
+
+        const badBtn = document.createElement('button');
+        badBtn.className = 'fb-btn bad';
+        badBtn.textContent = '👎 没帮助';
+        badBtn.onclick = () => submitFeedback(userQ, botA, 0, goodBtn, badBtn);
+
+        fbBar.appendChild(goodBtn);
+        fbBar.appendChild(badBtn);
+
         wrapper.appendChild(bubble);
+        wrapper.appendChild(fbBar);
         wrapper.appendChild(time);
         div.appendChild(avatar);
         div.appendChild(wrapper);
-
         chatContainer.appendChild(div);
+    }
+
+    // ===== 提交反馈 =====
+    async function submitFeedback(userRequest, agentReply, rating, goodBtn, badBtn) {
+        goodBtn.classList.add('voted');
+        badBtn.classList.add('voted');
+
+        // 乐观更新 UI
+        if (rating === 1) {
+            goodBtn.textContent = '👍 已点赞';
+        } else {
+            badBtn.textContent = '👎 已反馈';
+        }
+
+        try {
+            const resp = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_request: userRequest, agent_reply: agentReply, rating }),
+            });
+            const data = await resp.json();
+
+            // 如果好评足够了，提示可以优化 Skill
+            if (data.can_optimize && rating === 1) {
+                showSkillTip(data.stats.good);
+            }
+        } catch (e) {
+            console.error('反馈提交失败', e);
+        }
+    }
+
+    // ===== 提示可以优化 Skill =====
+    function showSkillTip(goodCount) {
+        const tip = document.createElement('div');
+        tip.style.cssText = `
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #16a34a;
+            text-align: center;
+            margin: 8px 0;
+            animation: fadeIn 0.3s ease;
+        `;
+        tip.innerHTML = `🎉 已积累 <strong>${goodCount}</strong> 条好评！可前往 <a href="/skill" target="_blank" style="color:#15803d;font-weight:600">Skill 管理页</a> 触发自动优化，让 Agent 越来越懂你 🧠`;
+        chatContainer.appendChild(tip);
+        scrollToBottom();
     }
 
     function showTyping() {
         const div = document.createElement('div');
         div.className = 'message bot';
         div.id = 'typing';
-
         const avatar = document.createElement('div');
         avatar.className = 'msg-avatar';
         avatar.textContent = '🤖';
-
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-
         const indicator = document.createElement('div');
         indicator.className = 'typing-indicator';
         indicator.innerHTML = '<span></span><span></span><span></span>';
-
         bubble.appendChild(indicator);
         div.appendChild(avatar);
         div.appendChild(bubble);
         chatContainer.appendChild(div);
-
         return div;
     }
 
-    // Focus input on load
     userInput.focus();
 </script>
 
